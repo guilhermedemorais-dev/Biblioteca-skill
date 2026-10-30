@@ -1,0 +1,10 @@
+{
+  "skill": "parceiro-estrategico-global",
+  "version": "candidate",
+  "cases": [
+    {"id":"route-investing","type":"positive","prompt":"Analise uma ação listada usando métricas financeiras", "expected_skill":"public-equity-investing","status":"NOT_RUN"},
+    {"id":"route-skill-creator","type":"positive","prompt":"Melhore minha skill existente sem criar duplicata", "expected_skill":"skill-creator","status":"NOT_RUN"},
+    {"id":"no-irrelevant-route","type":"negative","prompt":"Explique brevemente o conceito de idempotência", "expected_skill":null,"status":"NOT_RUN"},
+    {"id":"missing-dependency","type":"failure","prompt":"Execute uma skill especialista que não está disponível", "expected_skill":null,"status":"NOT_RUN"}
+  ]
+}
