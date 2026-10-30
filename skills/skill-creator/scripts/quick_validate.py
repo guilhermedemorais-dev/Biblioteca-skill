@@ -1,92 +1,107 @@
 #!/usr/bin/env python3
-"""Quick validator for local skill folders."""
-
-import sys
+"""Static validation. Does not certify runtime behavior or instruction quality."""
+import argparse
 import re
-import yaml
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
+import yaml
 
-def validate_skill(skill_path):
-    """Basic validation of a skill directory."""
-    skill_path = Path(skill_path)
+NAME_RE = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
 
-    # Check SKILL.md exists
-    skill_md = skill_path / 'SKILL.md'
-    if not skill_md.exists():
-        return False, "SKILL.md not found"
+def valid_name(name):
+    return isinstance(name, str) and 1 <= len(name) <= 64 and NAME_RE.fullmatch(name) is not None
 
-    # Read and validate frontmatter
-    content = skill_md.read_text()
-    if not content.startswith('---'):
-        return False, "No YAML frontmatter found"
-
-    # Extract frontmatter
-    match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+def load_frontmatter(root):
+    path = Path(root) / 'SKILL.md'
+    if not path.is_file() or path.is_symlink():
+        raise ValueError('SKILL.md must be a regular file, not a symlink')
+    content = path.read_text(encoding='utf-8')
+    match = re.match(r'\A---\r?\n(.*?)\r?\n---(?:\r?\n|$)', content, re.S)
     if not match:
-        return False, "Invalid frontmatter format"
+        raise ValueError('Missing or invalid YAML frontmatter')
+    data = yaml.safe_load(match.group(1))
+    if not isinstance(data, dict):
+        raise ValueError('Frontmatter must be a mapping')
+    return data, content[match.end():]
 
-    frontmatter_text = match.group(1)
+def local_file(root, relative):
+    path = Path(relative)
+    if path.is_absolute() or '..' in path.parts or '\\' in relative:
+        raise ValueError(f'Unsafe local reference: {relative}')
+    resolved = (root / path).resolve()
+    if not resolved.is_relative_to(root) or not resolved.is_file():
+        raise ValueError(f'Missing or external local file: {relative}')
+    return resolved
 
-    # Parse YAML frontmatter
+def local_references(body):
+    in_fence = None
+    for line in body.splitlines():
+        fence = re.match(r'^\s*(`{3,}|~{3,})', line)
+        if fence:
+            marker = fence.group(1)[0]
+            if in_fence is None:
+                in_fence = marker
+            elif in_fence == marker:
+                in_fence = None
+            continue
+        if in_fence:
+            continue
+        for link in re.findall(r'\]\(([^)]+)\)', line):
+            target = link.strip().strip('<>')
+            parts = urlsplit(target)
+            if not parts.scheme and parts.path:
+                yield unquote(parts.path)
+
+def validate_skill(skill_path, profile='portable'):
     try:
-        frontmatter = yaml.safe_load(frontmatter_text)
-        if not isinstance(frontmatter, dict):
-            return False, "Frontmatter must be a YAML dictionary"
-    except yaml.YAMLError as e:
-        return False, f"Invalid YAML in frontmatter: {e}"
+        root = Path(skill_path).resolve(strict=True)
+        if not root.is_dir():
+            raise ValueError('Skill path must be a directory')
+        meta, body = load_frontmatter(root)
+        allowed = {'name', 'description', 'license', 'compatibility', 'allowed-tools', 'metadata'}
+        extra = set(meta) - allowed
+        if extra:
+            raise ValueError('Unexpected frontmatter fields: ' + ', '.join(map(str, sorted(extra, key=str))))
+        if not valid_name(meta.get('name')):
+            raise ValueError('Name must be 1–64 lowercase alphanumeric/hyphen characters, without repeated or edge hyphens')
+        if meta['name'] != root.name:
+            raise ValueError('Name must match parent directory name')
+        desc = meta.get('description')
+        if not isinstance(desc, str) or not desc.strip() or len(desc) > 1024:
+            raise ValueError('Description must be a nonempty string of at most 1024 characters')
+        for field in ('license', 'allowed-tools'):
+            if field in meta and not isinstance(meta[field], str):
+                raise ValueError(f'{field} must be a string')
+        if 'compatibility' in meta:
+            value = meta['compatibility']
+            if not isinstance(value, str) or not value.strip() or len(value) > 500:
+                raise ValueError('Compatibility must be a nonempty string of at most 500 characters')
+        custom = meta.get('metadata', {})
+        if not isinstance(custom, dict) or any(not isinstance(k, str) or not isinstance(v, str) for k, v in custom.items()):
+            raise ValueError('metadata must map strings to strings')
+        for relative in custom.get('required-files', '').split():
+            local_file(root, relative)
+        for relative in local_references(body):
+            local_file(root, relative)
+        ui = root / 'agents/openai.yaml'
+        if profile == 'codex' or ui.exists():
+            if not ui.is_file():
+                raise ValueError('Codex profile requires agents/openai.yaml')
+            if not ui.resolve().is_relative_to(root):
+                raise ValueError('UI metadata must stay inside skill root')
+            config = yaml.safe_load(ui.read_text(encoding='utf-8'))
+            interface = config.get('interface') if isinstance(config, dict) else None
+            if not isinstance(interface, dict) or not isinstance(interface.get('display_name'), str) or not interface['display_name'].strip():
+                raise ValueError('UI metadata requires interface.display_name')
+        return True, 'Skill is valid! (static checks only)'
+    except (OSError, ValueError, TypeError, yaml.YAMLError) as error:
+        return False, str(error)
 
-    # Define allowed properties
-    ALLOWED_PROPERTIES = {'name', 'description', 'license', 'allowed-tools', 'metadata'}
-
-    # Check for unexpected properties (excluding nested keys under metadata)
-    unexpected_keys = set(frontmatter.keys()) - ALLOWED_PROPERTIES
-    if unexpected_keys:
-        return False, (
-            f"Unexpected key(s) in SKILL.md frontmatter: {', '.join(sorted(unexpected_keys))}. "
-            f"Allowed properties are: {', '.join(sorted(ALLOWED_PROPERTIES))}"
-        )
-
-    # Check required fields
-    if 'name' not in frontmatter:
-        return False, "Missing 'name' in frontmatter"
-    if 'description' not in frontmatter:
-        return False, "Missing 'description' in frontmatter"
-
-    # Extract name for validation
-    name = frontmatter.get('name', '')
-    if not isinstance(name, str):
-        return False, f"Name must be a string, got {type(name).__name__}"
-    name = name.strip()
-    if name:
-        # Check naming convention (hyphen-case: lowercase with hyphens)
-        if not re.match(r'^[a-z0-9-]+$', name):
-            return False, f"Name '{name}' should be hyphen-case (lowercase letters, digits, and hyphens only)"
-        if name.startswith('-') or name.endswith('-') or '--' in name:
-            return False, f"Name '{name}' cannot start/end with hyphen or contain consecutive hyphens"
-        # Check name length (max 64 characters per spec)
-        if len(name) > 64:
-            return False, f"Name is too long ({len(name)} characters). Maximum is 64 characters."
-
-    # Extract and validate description
-    description = frontmatter.get('description', '')
-    if not isinstance(description, str):
-        return False, f"Description must be a string, got {type(description).__name__}"
-    description = description.strip()
-    if description:
-        # Check for angle brackets
-        if '<' in description or '>' in description:
-            return False, "Description cannot contain angle brackets (< or >)"
-        # Check description length (max 1024 characters per spec)
-        if len(description) > 1024:
-            return False, f"Description is too long ({len(description)} characters). Maximum is 1024 characters."
-
-    return True, "Skill is valid!"
-
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python quick_validate.py <skill_directory>")
-        sys.exit(1)
-
-    valid, message = validate_skill(sys.argv[1])
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('skill_directory')
+    parser.add_argument('--profile', choices=['portable', 'codex'], default='portable')
+    args = parser.parse_args()
+    valid, message = validate_skill(args.skill_directory, args.profile)
     print(message)
-    sys.exit(0 if valid else 1)
+    raise SystemExit(0 if valid else 1)

@@ -17,7 +17,7 @@ For low-risk single-purpose skills, use fewer cases with justification. For crit
 
 ## Evaluation record
 
-Use JSON matching `references/eval-manifest-example.json` (the local validator checks its structure, not runtime outcome). For behavioral tests record: input, expected skill, actual skill, tools invoked, assertions, actual output, result PASS/FAIL/NOT_RUN, human reviewer when needed, model/runtime/version, date, latency/tokens if observable. For subjective output, compare against a rubric and allow manual review; a single LLM-as-judge score is not sufficient evidence.
+Use JSON matching `references/eval-manifest-example.json` (the local validator checks structure, identity and declared local evidence files, not runtime outcome). For behavioral tests record: input, expected skill, actual skill, tools invoked, assertions, actual output, result PASS/FAIL/NOT_RUN, human reviewer when needed, model/runtime/version, date, latency/tokens if observable. For subjective output, compare against a rubric and allow manual review; a single LLM-as-judge score is not sufficient evidence.
 
 ## Routing evaluation
 
@@ -33,3 +33,9 @@ Require: static validation passed; required deterministic scripts tested; no unr
 - Anthropic Skill Creator: https://github.com/anthropics/claude-plugins-official/tree/main/plugins/skill-creator
 - OpenAI agent evaluation: https://platform.openai.com/docs/guides/agent-evals
 - Promptfoo: https://www.promptfoo.dev/docs/intro/
+
+## Local manifest validation
+
+The manifest `skill` must match SKILL.md. Planned cases may remain NOT_RUN. An optional `evidence` string refers to a nonempty file inside the manifest directory; declared files are checked, including containment.
+
+`eval_manifest.py <folder> <manifest> --release` also requires the current SKILL.md SHA-256 in `skill_sha256`, matching version metadata when present, and PASS with evidence for every required case. Cases default to required. These checks cannot determine whether a trace is truthful or a subjective evaluation is sound. Review evidence content separately. Do not relabel essential cases as optional to bypass the gate.

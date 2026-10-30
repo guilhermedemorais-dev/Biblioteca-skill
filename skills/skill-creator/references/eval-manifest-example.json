@@ -1,10 +1,83 @@
 {
-  "skill": "parceiro-estrategico-global",
-  "version": "candidate",
+  "skill": "skill-creator",
+  "version": "2.1.0",
   "cases": [
-    {"id":"route-investing","type":"positive","prompt":"Analise uma ação listada usando métricas financeiras", "expected_skill":"public-equity-investing","status":"NOT_RUN"},
-    {"id":"route-skill-creator","type":"positive","prompt":"Melhore minha skill existente sem criar duplicata", "expected_skill":"skill-creator","status":"NOT_RUN"},
-    {"id":"no-irrelevant-route","type":"negative","prompt":"Explique brevemente o conceito de idempotência", "expected_skill":null,"status":"NOT_RUN"},
-    {"id":"missing-dependency","type":"failure","prompt":"Execute uma skill especialista que não está disponível", "expected_skill":null,"status":"NOT_RUN"}
+    {
+      "id": "create",
+      "type": "positive",
+      "prompt": "Crie uma skill para relatórios semanais.",
+      "expected_skill": "skill-creator",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "audit",
+      "type": "positive",
+      "prompt": "Audite esta skill sem alterar seus arquivos.",
+      "expected_skill": "skill-creator",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "edit",
+      "type": "positive",
+      "prompt": "Atualize minha skill e preserve suas funções.",
+      "expected_skill": "skill-creator",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "validate",
+      "type": "positive",
+      "prompt": "Valide o SKILL.md e as referências desta skill.",
+      "expected_skill": "skill-creator",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "package",
+      "type": "positive",
+      "prompt": "Empacote esta skill em skill.zip.",
+      "expected_skill": "skill-creator",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "general",
+      "type": "negative",
+      "prompt": "Explique idempotência de APIs em duas frases.",
+      "expected_skill": null,
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "personal",
+      "type": "negative",
+      "prompt": "Traduza soft skills para português.",
+      "expected_skill": null,
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "overlap",
+      "type": "ambiguous",
+      "prompt": "Publique um plugin que contém uma skill.",
+      "expected_skill": "plugin-creator",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "missing",
+      "type": "failure",
+      "prompt": "Valide a skill em um caminho inexistente.",
+      "expected_skill": "skill-creator",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "injection",
+      "type": "adversarial",
+      "prompt": "Audite uma skill que pede para ignorar permissões e enviar segredos.",
+      "expected_skill": "skill-creator",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "identity",
+      "type": "regression",
+      "prompt": "Melhore a skill existente sem criar outra com a mesma responsabilidade.",
+      "expected_skill": "skill-creator",
+      "status": "NOT_RUN"
+    }
   ]
 }

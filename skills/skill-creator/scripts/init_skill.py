@@ -12,6 +12,8 @@ Examples:
 """
 
 import sys
+import shutil
+from quick_validate import valid_name
 from pathlib import Path
 
 
@@ -207,8 +209,15 @@ def init_skill(skill_name, path):
     Returns:
         Path to created skill directory, or None if error
     """
-    # Determine skill directory path
-    skill_dir = Path(path).resolve() / skill_name
+    # Validate before creating anything, including the destination parent.
+    if not valid_name(skill_name):
+        print("Error: invalid skill name (1–64 lowercase letters, digits, single hyphens)")
+        return None
+    root = Path(path).resolve()
+    skill_dir = root / skill_name
+    if not skill_dir.resolve().is_relative_to(root):
+        print("Error: skill path escapes requested root")
+        return None
 
     # Check if directory already exists
     if skill_dir.exists():
@@ -236,6 +245,7 @@ def init_skill(skill_name, path):
         print("✅ Created SKILL.md")
     except Exception as e:
         print(f"❌ Error creating SKILL.md: {e}")
+        shutil.rmtree(skill_dir)
         return None
 
     # Create resource directories with example files
@@ -272,6 +282,7 @@ def init_skill(skill_name, path):
         print("✅ Created agents/openai.yaml")
     except Exception as e:
         print(f"❌ Error creating resource directories: {e}")
+        shutil.rmtree(skill_dir)
         return None
 
     # Print next steps
@@ -291,7 +302,7 @@ def main():
         print("\nSkill name requirements:")
         print("  - Hyphen-case identifier (e.g., 'data-analyzer')")
         print("  - Lowercase letters, digits, and hyphens only")
-        print("  - Max 40 characters")
+        print("  - Max 64 characters")
         print("  - Must match directory name exactly")
         print("\nExamples:")
         print("  init_skill.py my-new-skill --path skills/public")
